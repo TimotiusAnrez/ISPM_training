@@ -1,0 +1,178 @@
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+    USER
+    ORGANIZATION
+    ADMIN
+    SUPERADMIN
+}
+
+enum Status {
+    UNVERIFIED
+    VERIFIED
+    SUSPENDED
+    DELETED
+}
+
+enum Type {
+    Organization
+    Business
+    Product
+}
+
+model Category {
+    categoryID       BigInt         @id @unique(sort: Asc) @default(autoincrement())
+    name             String         @unique
+    description      String?        @db.Text
+    type             Type //type of model that is available
+    OrganizationList Organization[]
+    Business         Business[]
+    Product          Product[]
+    Image            Image[]
+}
+
+model District {
+    mendagriID       String         @id @unique
+    name             String
+    description      String?        @db.Text
+    image            String?
+    OrganizationList Organization[]
+    Business         Business[]
+    Image            Image[]
+}
+
+model Admin {
+    adminID     String   @id @unique @default(uuid())
+    fullName    String
+    gender      String
+    DOB         DateTime @db.Date
+    email       String   @unique
+    phoneNumber String   @unique
+    apiKey      String?  @unique @default(cuid())
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @default(now())
+    role        UserRole @default(ADMIN)
+    status      Status   @default(UNVERIFIED)
+}
+
+model User {
+    userID BigInt @id @unique @default(autoincrement())
+
+    //information
+    fullName String
+    gender   String
+    DOB      DateTime @db.Date
+
+    //auth
+    email         String  @unique
+    phoneNumber   String  @unique
+    googleAccount String? @unique
+
+    //metadata
+    createdAt    DateTime      @default(now())
+    updatedAt    DateTime      @default(now())
+    role         UserRole      @default(USER)
+    status       Status        @default(UNVERIFIED)
+    Organization Organization?
+
+    @@index([gender, status, role])
+}
+
+model Organization {
+    organizationID   String     @id @unique @default(cuid())
+    //information
+    name             String
+    description      String?    @db.Text
+    role             UserRole   @default(ORGANIZATION)
+    //location
+    district         String
+    regency          String     @default("Manggarai Barat")
+    longitude        Float
+    latitude         Float
+    //contact
+    email            String?
+    mailingAddress   String
+    contactNumber    String
+    //relation data
+    categoryID       BigInt
+    districtID       String
+    userID           BigInt     @unique
+    status           Status     @default(UNVERIFIED)
+    User             User       @relation(fields: [userID], references: [userID], onDelete: Cascade, onUpdate: Cascade)
+    OrganizationType Category   @relation(fields: [categoryID], references: [categoryID], onUpdate: Cascade)
+    District         District   @relation(fields: [districtID], references: [mendagriID], onUpdate: Cascade)
+    BusinessList     Business[]
+    Image            Image[]
+
+    @@index([districtID, categoryID(sort: Desc), status])
+}
+
+model Business {
+    businessID      BigInt       @id @unique(sort: Asc) @default(autoincrement())
+    //information
+    name            String
+    photo           String //url stored in file storage
+    description     String?      @db.Text
+    openTime        String
+    closeTime       String
+    //location
+    address         String
+    district        String //denormalized
+    longitude       Float
+    latitude        Float
+    //contact
+    email           String?
+    contactNumber   String
+    whatsAppLink    String?
+    //relation
+    categoryID      BigInt
+    districtID      String
+    ProductCategory String[] //denormalized from all product category that a business have
+    organizationID  String       @unique
+    status          Status       @default(UNVERIFIED)
+    District        District     @relation(fields: [districtID], references: [mendagriID], onUpdate: Cascade)
+    Organization    Organization @relation(fields: [organizationID], references: [organizationID], onDelete: Cascade, onUpdate: Cascade)
+    Sector          Category     @relation(fields: [categoryID], references: [categoryID], onUpdate: Cascade)
+    ProductList     Product[]
+    Image           Image[]
+
+    @@index([districtID, categoryID(sort: Desc), organizationID])
+}
+
+model Product {
+    productID       BigInt   @id @unique(sort: Asc) @default(autoincrement())
+    name            String
+    photo           String
+    description     String   @db.Text
+    category        String //denormalized for indexing
+    price           Int
+    categoryID      BigInt
+    businessID      BigInt
+    ProductCategory Category @relation(fields: [categoryID], references: [categoryID], onUpdate: Cascade)
+    Business        Business @relation(fields: [businessID], references: [businessID], onDelete: Cascade, onUpdate: Cascade)
+    Image           Image[]
+
+    @@index([businessID, categoryID(sort: Desc)])
+}
+
+model Image {
+    imageID        BigInt        @id @unique(sort: Asc) @default(autoincrement())
+    imageURL       String        @unique
+    productID      BigInt?
+    businessID     BigInt?
+    districtID     String?
+    categoryID     BigInt?
+    organizationID String?
+    Product        Product?      @relation(fields: [productID], references: [productID], onDelete: Cascade, onUpdate: Cascade)
+    Business       Business?     @relation(fields: [businessID], references: [businessID], onDelete: Cascade, onUpdate: Cascade)
+    District       District?     @relation(fields: [districtID], references: [mendagriID], onDelete: Cascade, onUpdate: Cascade)
+    Category       Category?     @relation(fields: [categoryID], references: [categoryID], onDelete: Cascade, onUpdate: Cascade)
+    Organization   Organization? @relation(fields: [organizationID], references: [organizationID], onDelete: Cascade, onUpdate: Cascade)
+}
